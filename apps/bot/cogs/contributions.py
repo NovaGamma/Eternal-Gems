@@ -69,18 +69,18 @@ class Contributions(commands.Cog):
         return discord.app_commands.check(predicate)
 
     @discord.app_commands.command(name="givepoints")
-    @discord.app_commands.describe(user="User to give points to", amount="Amount of points")
-    @is_staff()
+    @discord.app_commands.describe(user="User to give points to", amount="Amount of points", reason="Reason")
+    #@is_staff()
     @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
     async def givepoints(self, interaction: discord.Interaction, user: discord.Member, amount: int, reason: str = ''):
         db = DB()
-        await interaction.response.send_message(
-            f"Gave {amount} points to {user.id} by {interaction.user.id} reason {reason}"
-        )
         await db.add_contribution(user.id, amount, 'bot', reason=reason, author=interaction.user.id)
+        await interaction.response.send_message(
+            f"Gave {amount} points to {user.id} by {interaction.user.id}\n reason: {reason}"
+        )
 
     @discord.app_commands.command(name="init", description="initialize bot for the server")
-    @is_staff()
+    #@is_staff() ###TODO readd check once in production
     @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
     async def init(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
@@ -119,7 +119,6 @@ class Contributions(commands.Cog):
                 break
         next_rank_index = RANKS.index(current_rank) + 1
         next_rank = RANKS[next_rank_index] if len(RANKS) > next_rank_index else None
-
         if not next_rank:
             await interaction.response.send_message(
                 "You are already at the maximum rank.",
@@ -128,21 +127,20 @@ class Contributions(commands.Cog):
             return
 
         db = DB()
-        user = await db.get_user(user.id)
-        if user['contribution'] < next_rank['requirement']:
+        db_user = await db.get_user(user.id)
+        if db_user['contribution'] < next_rank['requirement']:
             await interaction.response.send_message(
-                f"You don't have enough contribution to rank up, you currently have {user['contribution']} and need {next_rank['requirement']}",
+                f"You don't have enough contribution to rank up, you currently have {db_user['contribution']} and need {next_rank['requirement']}",
                 ephemeral=True
             )
             return
-
         ### TODO add check for time between last rank-up
 
         guild = interaction.guild
         await user.add_roles(guild.get_role(next_rank['id']))
         await user.remove_roles(guild.get_role(current_rank['id']))
 
-        await db.logger(user['user_id'], 'rank_up', details={'source': 'bot', 'new_rank': next_rank})
+        await db.logger(db_user['user_id'], 'rank_up', details={'source': 'bot', 'new_rank': next_rank})
 
         await interaction.response.send_message(
             f"You have successfully been ranked up to {next_rank['name']} Grats",
@@ -182,6 +180,15 @@ class Contributions(commands.Cog):
             await interaction.response.send_message(
                 f"Successfully synced rsn: {rsn}"
             )
+
+    @discord.app_commands.command(name="getlogs", description="Get the logs of the user")
+    @discord.app_commands.describe(user="User to get the logs for")
+    #@is_staff()
+    @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def getlogs(self, interaction: discord.Interaction, user: discord.Member):
+        db = DB()
+        db_user = db.get_user(user)
+        logs = db.get_logs(db_user)
 
 async def setup(bot):
     await bot.add_cog(Contributions(bot))
