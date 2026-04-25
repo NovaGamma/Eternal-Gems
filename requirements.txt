@@ -1,0 +1,6 @@
+discord.py==2.7.1
+fastapi==0.136.1
+httpx==0.28.1
+pydantic==2.13.3
+pymongo==4.17.0
+python-dotenv==1.2.2
