@@ -187,8 +187,20 @@ class Contributions(commands.Cog):
     @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
     async def getlogs(self, interaction: discord.Interaction, user: discord.Member):
         db = DB()
-        db_user = db.get_user(user)
-        logs = db.get_logs(db_user)
+        db_user = await db.get_user(user)
+        logs = await db.get_logs(db_user)
+
+        logs_count = logs['total']
+        message = f"Displaying logs for {user.name} page: {logs['page']}/{logs['total_pages']}\n```"
+
+        for log in logs['logs']:
+            message += ' '.join([f"{key}: {value}" for key, value in log.items() if key not in ['_id', 'user_id']]) + '\n'
+
+        message += '```'
+        await interaction.response.send_message(
+            message
+        )
+
 
 async def setup(bot):
     await bot.add_cog(Contributions(bot))

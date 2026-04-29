@@ -81,8 +81,19 @@ class DB:
         await contributions.update_one({'user_id': get_user_id(user)}, {'$set': {'rsn': rsn}})
         await self.logger(user, type='sync_rsn', details={'source': 'bot', 'rsn': rsn})
         
-    async def get_logs(self, user, max=10):
+    async def get_logs(self, user, page_number=1, page_size=10):
         logs_collection = self.get_collection('events')
-        api_logs_collection = self.get_collection('api_events')
-        event_logs = await logs_collection.find({'user_id': get_user_id(user)}).sort({'timestamp': -1})
-        api_logs = await api_logs_collection.find({'user_id': get_user_id(user)}).sort({'timestamp': -1})
+        user_id = get_user_id(user)
+        query = {'user_id': user_id}
+
+        total_logs = await logs_collection.count_documents(query)
+        skip_amount = (page_number - 1) * page_size
+        cursor = logs_collection.find(query).sort('timestamp', -1).skip(skip_amount).limit(page_size)
+        logs = await cursor.to_list(length=page_size)
+
+        return {
+            "logs": logs,
+            "total": total_logs,
+            "page": page_number,
+            "total_pages": (total_logs + page_size - 1) // page_size
+        }
