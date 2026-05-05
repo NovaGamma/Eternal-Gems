@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Header, HTTPException
 import httpx
+from core.db.mongo import DB
 from core.services.contributions import add_message_contribution
 from core.config import TRACKSCAPE_URL, settings
 
@@ -31,11 +32,17 @@ async def receive_contribution(request: Request, verification_code: str = Header
     incoming_headers = dict(request.headers)
     forwarded_headers = filter_headers(incoming_headers)
 
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            TRACKSCAPE_URL,
-            json=data,
-            headers=forwarded_headers
-        )
+    db = DB()
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                TRACKSCAPE_URL,
+                json=data,
+                headers=forwarded_headers
+            )
+            if response.status_code != 200:
+                db.logger(0, 'error', {'trackscape': f'non 200 response: {response.status_code}', 'source': 'API'})
+    except:
+        db.logger(0, 'error', {'trackscape': 'general error', 'source': 'API'})
 
     await add_message_contribution(data[0])
