@@ -26,10 +26,10 @@ async def on_ready():
 
 @bot.command()
 async def sync(ctx):
-    print("here")
     synced = await bot.tree.sync(guild=ctx.guild)
     await ctx.send(f"Synced {len(synced)} guild commands.")
-    print("there")
+    for command in synced:
+        print(command.name)
 
 @bot.command()
 async def ping(ctx):
@@ -50,6 +50,19 @@ async def on_app_command_error(interaction: discord.Interaction, error: Exceptio
                 f"Error: {error}",
                 ephemeral=True
             )
+    except Exception as e:
+        print("Failed to send error message:", e)
+
+@bot.event
+async def on_command_error(ctx, error):
+    print("PREFIX COMMAND ERROR:", repr(error))
+
+    # Unwrap original error if it's a CommandInvokeError
+    if hasattr(error, "original"):
+        error = error.original
+
+    try:
+        await ctx.send(f"Error: {error}")
     except Exception as e:
         print("Failed to send error message:", e)
 

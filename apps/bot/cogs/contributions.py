@@ -2,7 +2,9 @@ import discord
 from discord.ext import commands
 from core.services.contributions import *
 from core.db.mongo import DB
-from core.config import ALLOWED_ROLE_ID, ETERNAL_GEM_MEMBER_ROLE, RANKS, GUILD_ID
+from core.config import ETERNAL_GEM_MEMBER_ROLE, RANKS, GUILD_ID
+from core.utils.utils import is_staff
+import re
 
 class ConfirmView(discord.ui.View):
     def __init__(self, author: discord.User, success_message, callback, **params):
@@ -50,9 +52,10 @@ class ConfirmView(discord.ui.View):
     @discord.ui.button(label="Disagree", style=discord.ButtonStyle.danger)
     async def disagree(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.value = False
+        await interaction.response.defer()
         await interaction.followup.edit_message(
             interaction.message.id,
-            content="Stopping",
+            content="RSN sync cancelled",
             view=None
         )
         self.stop()
@@ -61,22 +64,24 @@ class Contributions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def is_staff():
-        def predicate(interaction: discord.Interaction) -> bool:
-            if not any(role.id == ALLOWED_ROLE_ID for role in interaction.user.roles):
-                return False
-            return True
-        return discord.app_commands.check(predicate)
-
     @discord.app_commands.command(name="givepoints")
+    @discord.app_commands.Parameter()
     @discord.app_commands.describe(user="User to give points to", amount="Amount of points", reason="Reason")
     #@is_staff()
     @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
-    async def givepoints(self, interaction: discord.Interaction, user: discord.Member, amount: int, reason: str = ''):
+    async def givepoints(self, interaction: discord.Interaction,
+                         user: discord.Member,
+                         amount: discord.app_commands.Range[int, 1],
+                         reason: str = ''):
         db = DB()
-        await db.add_contribution(user.id, amount, 'bot', reason=reason, author=interaction.user.id)
+        result = await db.add_contribution(user.id, amount, 'bot', reason=reason, author=interaction.user.id)
+        if not result:
+            await interaction.response.send_message(
+                f"Error: couldn't find user in database"
+            )
+            return
         await interaction.response.send_message(
-            f"Gave {amount} points to {user.id} by {interaction.user.id}\n reason: {reason}"
+            f"Gave {amount} points to {user.mention} by {interaction.user.mention}\n reason: {reason}"
         )
 
     @discord.app_commands.command(name="init", description="initialize bot for the server")
@@ -85,20 +90,24 @@ class Contributions(commands.Cog):
     async def init(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
 
+        failure = skipped = success = 0
         db = DB()
         members = interaction.guild.members
         for member in members:
             # check that they have GEM role
             if not any(role.id == ETERNAL_GEM_MEMBER_ROLE for role in member.roles):
                 print(f"skipping member {member.id}")
+                skipped +=1
                 continue
             
             print(f"add member {member.id}")
             try:
                 await db.add_user(member.id)
+                success += 1
             except Exception as e:
+                failure += 1
                 print(f"Error {e}")
-        await interaction.followup.send("Bot sucessfully initialized")
+        await interaction.followup.send(f"Bot sucessfully initialized: success {success} skipped {skipped} failure {failure}")
 
     @discord.app_commands.command(name="rank_up", description="Request rank-up if you fullfill the requirements")
     @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
@@ -137,10 +146,13 @@ class Contributions(commands.Cog):
         ### TODO add check for time between last rank-up
 
         guild = interaction.guild
-        await user.add_roles(guild.get_role(next_rank['id']))
-        await user.remove_roles(guild.get_role(current_rank['id']))
+        try:
+            await user.add_roles(guild.get_role(next_rank['id']))
+            await user.remove_roles(guild.get_role(current_rank['id']))
+        except:
+            db.logger(user.id, 'error', {'role_assignment': next_rank['name'], 'source': 'rank_up'})
 
-        await db.logger(db_user['user_id'], 'rank_up', details={'source': 'bot', 'new_rank': next_rank})
+        await db.logger(db_user['user_id'], 'rank_up', details={'source': 'bot', 'new_rank': next_rank, 'old_rank': current_rank})
 
         await interaction.response.send_message(
             f"You have successfully been ranked up to {next_rank['name']} Grats",
@@ -160,6 +172,14 @@ class Contributions(commands.Cog):
             )
             return
         
+        pattern = r'^[A-Za-z0-9 -]{1,12}$'
+        if not bool(re.fullmatch(pattern, rsn)):
+            await interaction.response.send_message(
+                "Invalid RSN provided",
+                ephemeral=True
+            )
+            return
+
         db = DB()
         user = await db.get_user(user.id)
         if user['rsn']:
@@ -201,6 +221,31 @@ class Contributions(commands.Cog):
             message
         )
 
+    @commands.Cog.listener('on_member_update')
+    async def handle_member_update(self, before, after):
+        if ETERNAL_GEM_MEMBER_ROLE not in [role.id for role in before.roles] and ETERNAL_GEM_MEMBER_ROLE in [role.id for role in after.roles]:
+            db = DB()
+            user = after
+            # check that user doesn't already exist is in the add_user function
+            await db.add_user(user.id)
+            db_user = await db.get_user(user.id)
+            # new member
+            if db_user['contribution'] == 0:
+                return
+            
+            #give back old member their role
+            for i, rank in enumerate(RANKS):
+                if db_user['contribution'] < rank['requirement']:
+                    break
+
+            current_rank = RANKS[i-1] if i > 0 else None
+            if current_rank:            
+                guild = user.guild
+                try:
+                    await user.add_roles(guild.get_role(current_rank['id']))
+                    await user.remove_roles(guild.get_role(RANKS[0]['id']))
+                except:
+                    db.logger(user.id, 'error', {'role_assignment': current_rank['name'], 'source': 'on_member_rejoin'})
 
 async def setup(bot):
     await bot.add_cog(Contributions(bot))

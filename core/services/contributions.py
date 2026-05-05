@@ -1,5 +1,6 @@
 from core.db.mongo import DB
 from core.config import MESSAGE_CONTRIBUTION, MESSAGE_CONTRIBUTION_LIMIT
+from datetime import datetime, timedelta
 
 async def add_message_contribution(data):
     db = DB()
@@ -17,7 +18,9 @@ async def add_message_contribution(data):
 
     user = await db.get_user_rsn(sender)
     if user:
-        message_contributions = await db.get_events(user, {'type': 'message'})
+        #checking events in the past 24h
+        time = datetime.now() - timedelta(hours=24)
+        message_contributions = await db.get_events(user, {'type': 'message', 'timestamp': {"$gte": time}})
         if len(message_contributions) < MESSAGE_CONTRIBUTION_LIMIT:
             await db.add_contribution(user, MESSAGE_CONTRIBUTION, 'message')
         await db.logger(user, type='message', details={'message': data['message']})

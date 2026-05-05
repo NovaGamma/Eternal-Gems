@@ -28,6 +28,7 @@ class DB:
         await events.insert_one(event)
 
     async def logger(self, user, type, details):
+        # TODO add monitoring for error type logs
         events = self.get_collection('events')
         event = {
                 "type": type,
@@ -40,8 +41,10 @@ class DB:
 
     async def add_contribution(self, user, amount, source, **kwargs):
         contributions = self.get_collection('contributions')
-        await contributions.update_one({'user_id': get_user_id(user)}, {"$inc": {"contribution": amount}})
-        await self.logger(user, type='contribution_added', details={'source': source, 'amount': amount, **kwargs})
+        updated = await contributions.update_one({'user_id': get_user_id(user)}, {"$inc": {"contribution": amount}})
+        if updated.modified_count:
+            await self.logger(user, type='contribution_added', details={'source': source, 'amount': amount, **kwargs})
+        return updated.modified_count
 
     async def get_user_rsn(self, rsn: str):
         contributions = self.get_collection('contributions')
@@ -55,7 +58,7 @@ class DB:
             query['user_id'] = get_user_id(user)
         if filter:
             query = {**query, **filter}
-        events = await events_collection.find(filter).to_list()
+        events = await events_collection.find(query).to_list()
         if limit:
             events = events.limit(limit)
         return events

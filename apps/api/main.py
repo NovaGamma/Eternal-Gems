@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, Header, HTTPException
 import httpx
 from core.services.contributions import add_message_contribution
-from core.config import API_CODE, TRACKSCAPE_URL
+from core.config import TRACKSCAPE_URL, settings
 
 app = FastAPI()
 
@@ -21,7 +21,7 @@ def filter_headers(headers: dict) -> dict:
 @app.post("/message")
 async def receive_contribution(request: Request, verification_code: str = Header(None)):
     print(request)
-    if verification_code != API_CODE:
+    if verification_code != settings.API_CODE:
         raise HTTPException(status_code=403, detail="Invalid verification code")
     
     data = await request.json()
