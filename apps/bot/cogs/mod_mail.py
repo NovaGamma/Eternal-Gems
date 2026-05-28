@@ -42,13 +42,10 @@ class ModMail(commands.Cog):
 
     @commands.command(name="send")
     async def send(self, ctx, *message):
-        print('in command logic')
         # ignore command if not in a channel for an opened ticket
         if not await staff_message_ticket(ctx.channel):
-            print('not in ticket')
             return
         # since using normal command, if message is sent it would be split in a list of args
-        print('after check')
         message = ' '.join(message)
         await send_staff_message(ctx, message)
 
@@ -56,7 +53,9 @@ class ModMail(commands.Cog):
     async def handle_message(self, message):
         ticket = await user_message_ticket(message.author.id)
         if not ticket:
-            print('in event logic')
+            return
+
+        if ticket['user_channel'] != message.channel.id:
             return
 
         await send_user_message(message, self.bot)

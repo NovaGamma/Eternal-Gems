@@ -2,70 +2,17 @@ import discord
 from discord.ext import commands
 from core.services.contributions import *
 from core.db.mongo import DB
-from core.config import ETERNAL_GEM_MEMBER_ROLE, RANKS, GUILD_ID
+from core.config import ETERNAL_GEM_MEMBER_ROLE, RANKS, GUILD_ID, TO_BE_RANKED
 from core.utils.utils import is_staff
+from apps.bot.views.contributions import ConfirmView, PointsView
 import re
 
-class ConfirmView(discord.ui.View):
-    def __init__(self, author: discord.User, success_message, callback, **params):
-        super().__init__(timeout=30)  # buttons expire after 30s
-        self.value = None
-        self.author = author
-        self.callback = callback
-        self.params = params
-        self.success_message = success_message
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception, item):
-        print("VIEW ERROR:", repr(error))
-
-        try:
-            if interaction.response.is_done():
-                await interaction.followup.send(
-                    f"Error: {error}",
-                    ephemeral=True
-                )
-            else:
-                await interaction.response.send_message(
-                    f"Error: {error}",
-                    ephemeral=True
-                )
-        except Exception as e:
-            print("Failed to send error message:", e)
-
-    async def interaction_check(self, interaction: discord.Interaction):
-        return interaction.user.id == self.author['user_id']
-
-    @discord.ui.button(label="Agree", style=discord.ButtonStyle.success)
-    async def agree(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = True
-        await interaction.response.defer()
-
-        await self.callback(**self.params)
-
-        await interaction.followup.edit_message(
-            interaction.message.id,
-            content=self.success_message,
-            view=None
-        )
-        self.stop()
-
-    @discord.ui.button(label="Disagree", style=discord.ButtonStyle.danger)
-    async def disagree(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = False
-        await interaction.response.defer()
-        await interaction.followup.edit_message(
-            interaction.message.id,
-            content="RSN sync cancelled",
-            view=None
-        )
-        self.stop()
 
 class Contributions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @discord.app_commands.command(name="givepoints")
-    @discord.app_commands.Parameter()
     @discord.app_commands.describe(user="User to give points to", amount="Amount of points", reason="Reason")
     #@is_staff()
     @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
@@ -83,6 +30,27 @@ class Contributions(commands.Cog):
         await interaction.response.send_message(
             f"Gave {amount} points to {user.mention} by {interaction.user.mention}\n reason: {reason}"
         )
+
+    @discord.app_commands.command(name="givebulkpoints")
+    #@is_staff()
+    @discord.app_commands.guilds(discord.Object(id=GUILD_ID))
+    async def givebulkpoints(self, interaction: discord.Interaction):
+        await interaction.response.send_message(
+            "Choose users from the menu below:",
+            view=PointsView(print),
+            ephemeral=True
+        )
+        #db = DB()
+        #for user in users:
+        #    result = await db.add_contribution(user.id, amount, 'bot', reason=reason, author=interaction.user.id)
+        #    if not result:
+        #        await interaction.response.send_message(
+        #            f"Error: couldn't find user in database"
+        #        )
+        #        continue
+        #    await interaction.response.send_message(
+        #        f"Gave {amount} points to {user.mention} by {interaction.user.mention}\n reason: {reason}"
+        #    )
 
     @discord.app_commands.command(name="init", description="initialize bot for the server")
     #@is_staff() ###TODO readd check once in production
@@ -154,6 +122,9 @@ class Contributions(commands.Cog):
 
         await db.logger(db_user['user_id'], 'rank_up', details={'source': 'bot', 'new_rank': next_rank, 'old_rank': current_rank})
 
+        to_be_ranked = interaction.guild.get_channel(TO_BE_RANKED)
+        await to_be_ranked.send(f"{user.mention} to {next_rank['name']}")
+
         await interaction.response.send_message(
             f"You have successfully been ranked up to {next_rank['name']} Grats",
             ephemeral=True
@@ -210,7 +181,6 @@ class Contributions(commands.Cog):
         db_user = await db.get_user(user)
         logs = await db.get_logs(db_user)
 
-        logs_count = logs['total']
         message = f"Displaying logs for {user.name} page: {logs['page']}/{logs['total_pages']}\n```"
 
         for log in logs['logs']:
@@ -230,18 +200,23 @@ class Contributions(commands.Cog):
             await db.add_user(user.id)
             db_user = await db.get_user(user.id)
             # new member
+            print(db_user)
             if db_user['contribution'] == 0:
                 return
             
             #give back old member their role
             for i, rank in enumerate(RANKS):
+                print(i, rank)
                 if db_user['contribution'] < rank['requirement']:
+                    print(rank)
+                    i -= 1
                     break
 
-            current_rank = RANKS[i-1] if i > 0 else None
+            current_rank = RANKS[i] if i > 0 else None
             if current_rank:            
                 guild = user.guild
                 try:
+                    print(current_rank)
                     await user.add_roles(guild.get_role(current_rank['id']))
                     await user.remove_roles(guild.get_role(RANKS[0]['id']))
                 except:

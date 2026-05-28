@@ -2,6 +2,9 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from PIL import Image
+import traceback
+import sys
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -52,6 +55,26 @@ async def on_app_command_error(interaction: discord.Interaction, error: Exceptio
             )
     except Exception as e:
         print("Failed to send error message:", e)
+
+@bot.command()
+async def bigemoji(ctx, emoji: discord.PartialEmoji):
+    url = emoji.url
+    factor = 5
+    async with ctx.typing():
+        await url.save('Temp/' + emoji.name + '.png')
+        path = 'Temp/' + emoji.name + '.png'
+        im = Image.open(path)
+        size = (int(im.width * factor),int(im.height * factor))
+        new = im.resize(size)
+        new.save(path)
+        await ctx.send(file = discord.File(path))
+        os.remove(path)
+
+@bot.event
+async def on_error(event, *args, **kwargs):
+    print(f"\n--- EVENT ERROR ({event}) ---")
+
+    traceback.print_exc(file=sys.stderr)
 
 @bot.event
 async def on_command_error(ctx, error):
