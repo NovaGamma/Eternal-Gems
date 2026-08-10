@@ -18,7 +18,8 @@ if not settings.MONGO_URI or not settings.DB_NAME:
         f"Environment variables not loaded. Check if .env exists at {BASE_DIR}/.env"
     )
 
-dico = enchant.Dict("en_US")
+#dico = enchant.Dict("en_US")
+dico = None
 
 MESSAGE_CONTRIBUTION_LIMIT = 5
 MESSAGE_CONTRIBUTION = 1
