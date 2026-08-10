@@ -89,7 +89,7 @@ async def on_command_error(ctx, error):
     except Exception as e:
         print("Failed to send error message:", e)
 
-disabled_cogs = ['contributions', 'motus']
+DISABLED_COGS = ['contributions', 'motus']
 
 async def load_cogs():
     for filename in os.listdir("./apps/bot/cogs"):
