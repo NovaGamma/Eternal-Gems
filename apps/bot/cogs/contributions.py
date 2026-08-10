@@ -222,5 +222,5 @@ class Contributions(commands.Cog):
                 except:
                     db.logger(user.id, 'error', {'role_assignment': current_rank['name'], 'source': 'on_member_rejoin'})
 
-async def setup(bot):
-    await bot.add_cog(Contributions(bot))
+#async def setup(bot):
+#    await bot.add_cog(Contributions(bot))

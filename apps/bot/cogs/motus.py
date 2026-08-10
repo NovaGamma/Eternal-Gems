@@ -34,5 +34,5 @@ class Motus(commands.Cog):
 
         await handle_motus_guess(motus, message)
 
-async def setup(bot):
-    await bot.add_cog(Motus(bot))
+#async def setup(bot):
+#    await bot.add_cog(Motus(bot))
