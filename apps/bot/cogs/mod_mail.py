@@ -30,6 +30,7 @@ class ModMail(commands.Cog):
         await create_modmail_ticket(staff_channel.id, user, interaction.guild_id)
         mention = await self.staff_mention(interaction.guild)
         await staff_channel.send(f"Created Staff channel for anonymous messaging to {user.mention}\n {mention}")
+        await staff_channel.send("You can talk freely in this channel, to send a message to the recipient use $send YOUR MESSAGE")
         await interaction.response.send_message(f'ticket opened {staff_channel.jump_url}')
 
     @discord.app_commands.command(name="closeticket", description="close ticket")
@@ -55,7 +56,7 @@ class ModMail(commands.Cog):
         if not ticket:
             return
 
-        if ticket['user_channel'] != message.channel.id:
+        if not ticket['DM'] and ticket['user_channel'] != message.channel.id:
             return
 
         await send_user_message(message, self.bot)

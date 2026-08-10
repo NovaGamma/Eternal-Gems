@@ -12,7 +12,8 @@ async def create_modmail_ticket(channel_id, user, guild_id):
             'staff_channel': channel_id,
             'DM': True,
             'status': 'open',
-            'guild': guild_id
+            'guild': guild_id,
+            'user_channel': 0
         })
 
 async def get_ticket(channel_id, guild_id):
