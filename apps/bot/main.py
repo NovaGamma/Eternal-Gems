@@ -89,10 +89,15 @@ async def on_command_error(ctx, error):
     except Exception as e:
         print("Failed to send error message:", e)
 
+disabled_cogs = ['contributions', 'motus']
+
 async def load_cogs():
     for filename in os.listdir("./apps/bot/cogs"):
         if filename.endswith(".py"):
-            await bot.load_extension(f"apps.bot.cogs.{filename[:-3]}")
+            cog_name = filename[:-3]
+            if cog_name in DISABLED_COGS:
+                continue
+            await bot.load_extension(f"apps.bot.cogs.{cog_name}")
 
 async def main():
     async with bot:
