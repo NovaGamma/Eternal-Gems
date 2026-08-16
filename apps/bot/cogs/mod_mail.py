@@ -42,12 +42,12 @@ class ModMail(commands.Cog):
         await close_ticket(interaction, self.bot)
 
     @commands.command(name="send")
-    async def send(self, ctx, *message):
+    async def send(self, ctx, *, message):
         # ignore command if not in a channel for an opened ticket
         if not await staff_message_ticket(ctx.channel):
             return
         # since using normal command, if message is sent it would be split in a list of args
-        message = ' '.join(message)
+        print(message)
         await send_staff_message(ctx, message)
 
     @commands.Cog.listener('on_message')

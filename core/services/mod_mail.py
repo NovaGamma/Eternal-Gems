@@ -44,11 +44,17 @@ async def send_staff_message(ctx, message):
     ticket = await get_ticket(ctx.channel.id, ctx.channel.guild.id)
     user_id = ticket['user']
     user_channel = None
+
+    author = ctx.author
+
+    embed = discord.Embed(description=message)
+    embed.set_author(name=author.display_name, icon_url=author.display_avatar.url)
+
     if ticket['DM']:
         # try to send DM
         user = ctx.bot.get_user(user_id)
         try:
-            await user.send(message)
+            await user.send(embed=embed)
             return
         except discord.HTTPException or discord.Forbidden:
             category = ctx.channel.category
@@ -62,7 +68,7 @@ async def send_staff_message(ctx, message):
     if not user_channel:    
         user_channel = ticket['user_channel']
         user_channel = ctx.guild.get_channel(user_channel)
-    await user_channel.send(message)
+    await user_channel.send(embed=embed)
 
 async def user_message_ticket(user_id):
     db = DB()
